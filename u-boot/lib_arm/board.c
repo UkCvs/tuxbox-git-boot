@@ -46,9 +46,7 @@ static ulong mem_malloc_start = 0;
 static ulong mem_malloc_end = 0;
 static ulong mem_malloc_brk = 0;
 
-#if !defined(CONFIG_MODEM_SUPPORT)
 static
-#endif
 void mem_malloc_init (ulong dest_addr)
 {
 	mem_malloc_start = dest_addr;
@@ -175,7 +173,9 @@ init_fnc_t *init_sequence[] = {
 	display_banner,		/* say that we are here */
 	dram_init,		/* configure available RAM banks */
 	display_dram_config,
-
+#if defined(CONFIG_VCMA9)
+	checkboard,
+#endif
 	NULL,
 };
 
@@ -187,7 +187,7 @@ void start_armboot (void)
 	gd_t gd_data;
 	bd_t bd_data;
 	init_fnc_t **init_fnc_ptr;
-#if defined(CONFIG_VFD) && !defined(CONFIG_MODEM_SUPPORT)
+#if defined(CONFIG_VFD)
 	unsigned long addr;
 #endif
 
@@ -208,10 +208,9 @@ void start_armboot (void)
 	display_flash_config (size);
 
 #ifdef CONFIG_VFD
-#ifndef CONFIG_MODEM_SUPPORT
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096
-#endif
+#  ifndef PAGE_SIZE
+#   define PAGE_SIZE 4096
+#  endif
 	/*
 	 * reserve memory for VFD display (always full pages)
 	 */
@@ -223,20 +222,18 @@ void start_armboot (void)
 	addr += size;
 	addr = (addr + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
 	mem_malloc_init (addr);
-#endif /* CONFIG_MODEM_SUPPORT */
 #else
 	/* armboot_real_end is defined in the board-specific linker script */
 	mem_malloc_init (_armboot_real_end);
 #endif /* CONFIG_VFD */
 
-#ifdef CONFIG_VFD
-#ifndef CONFIG_MODEM_SUPPORT
-	/* must do this after the framebuffer is allocated */
-	drv_vfd_init();
-#endif /* CONFIG_MODEM_SUPPORT */
-#endif
 	/* initialize environment */
 	env_relocate ();
+
+#ifdef CONFIG_VFD
+	/* must do this after the framebuffer is allocated */
+	drv_vfd_init();
+#endif
 
 	/* IP Address */
 	bd_data.bi_ip_addr = getenv_IPaddr ("ipaddr");
@@ -267,9 +264,7 @@ void start_armboot (void)
 	enable_interrupts ();
 
 #ifdef CONFIG_DRIVER_CS8900
-	if (!getenv ("ethaddr")) {
-		cs8900_get_enetaddr (gd->bd->bi_enetaddr);
-	}
+	cs8900_get_enetaddr (gd->bd->bi_enetaddr);
 #endif
 
 #ifdef BOARD_POST_INIT

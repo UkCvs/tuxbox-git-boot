@@ -55,12 +55,30 @@
 #define BLAU	0x0C
 #define VIOLETT	0X0D
 
-ulong vfdbase;
-ulong frame_buf_size;
+/* MAGIC */
+#define	FRAME_BUF_SIZE	((256*4*56)/8)
 #define frame_buf_offs 4
 
+/* defines for starting Timer3 as CPLD-Clk */
+#define START3			(1 << 16)
+#define UPDATE3			(1 << 17)
+#define INVERT3			(1 << 18)
+#define RELOAD3			(1 << 19)
+
+/* CPLD-Register for controlling vfd-blank-signal */
+#define VFD_DISABLE	(*(volatile uchar *)0x04038000=0x0000)
+#define VFD_ENABLE	(*(volatile uchar *)0x04038000=0x0001)
+
+/* Supported VFD Types */
+#define	VFD_TYPE_T119C		1	/* Noritake T119C VFD */
+#define	VFD_TYPE_MN11236	2
+
+/*#define NEW_CPLD_CLK*/
+
+int vfd_board_id;
+
 /* taken from armboot/common/vfd.c */
-ulong         adr_vfd_table[112][18][2][4][2];
+unsigned long adr_vfd_table[112][18][2][4][2];
 unsigned char bit_vfd_table[112][18][2][4][2];
 
 /*
@@ -68,26 +86,31 @@ unsigned char bit_vfd_table[112][18][2][4][2];
  */
 void init_grid_ctrl(void)
 {
+	DECLARE_GLOBAL_DATA_PTR;
 	ulong adr, grid_cycle;
 	unsigned int bit, display;
 	unsigned char temp, bit_nr;
 
-	for (adr=vfdbase; adr<=(vfdbase+7168); adr+=4) /*clear frame buffer */
-		(*(volatile ulong*)(adr))=0;
+	/*
+	 * clear frame buffer (logical clear => set to "black")
+	 */
+	memset ((void *)(gd->fb_base), 0, FRAME_BUF_SIZE);
 
-	for(display=0;display<=3;display++)
-	{
-		for(grid_cycle=0;grid_cycle<=55;grid_cycle++)
-		{
-			bit = grid_cycle*256*4+(grid_cycle+200)*4+frame_buf_offs+display;
+	switch (gd->vfd_type) {
+	case VFD_TYPE_T119C:
+	    for (display=0; display<4; display++) {
+		for(grid_cycle=0; grid_cycle<56; grid_cycle++) {
+			bit = grid_cycle * 256  * 4 +
+			     (grid_cycle + 200) * 4 +
+			     frame_buf_offs + display;
  			/* wrap arround if offset (see manual S3C2400) */
-			if (bit>=frame_buf_size*8)
-				bit = bit-(frame_buf_size*8);
-			adr = vfdbase+(bit/32)*4+(3-(bit%32)/8);
-			bit_nr = bit%8;
-			bit_nr = (bit_nr>3)?bit_nr-4:bit_nr+4;
+			if (bit>=FRAME_BUF_SIZE*8)
+				bit = bit - (FRAME_BUF_SIZE * 8);
+			adr = gd->fb_base + (bit/32) * 4 + (3 - (bit%32) / 8);
+			bit_nr = bit % 8;
+			bit_nr = (bit_nr > 3) ? bit_nr-4 : bit_nr+4;
 			temp=(*(volatile unsigned char*)(adr));
-			temp|=(1<<bit_nr);
+			temp |=  (1<<bit_nr);
 			(*(volatile unsigned char*)(adr))=temp;
 
 			if(grid_cycle<55)
@@ -95,15 +118,51 @@ void init_grid_ctrl(void)
 			else
 				bit = grid_cycle*256*4+200*4+frame_buf_offs+display-4; 	/* grid nr. 0 */
 			/* wrap arround if offset (see manual S3C2400) */
-			if (bit>=frame_buf_size*8)
-				bit = bit-(frame_buf_size*8);
-			adr = vfdbase+(bit/32)*4+(3-(bit%32)/8);
+			if (bit>=FRAME_BUF_SIZE*8)
+				bit = bit-(FRAME_BUF_SIZE*8);
+			adr = gd->fb_base+(bit/32)*4+(3-(bit%32)/8);
 			bit_nr = bit%8;
 			bit_nr = (bit_nr>3)?bit_nr-4:bit_nr+4;
 			temp=(*(volatile unsigned char*)(adr));
-			temp|=(1<<bit_nr);
+			temp |=  (1<<bit_nr);
 			(*(volatile unsigned char*)(adr))=temp;
 		}
+	    }
+	    break;
+	case VFD_TYPE_MN11236:
+	    for (display=0; display<4; display++) {
+		for (grid_cycle=0; grid_cycle<38; grid_cycle++) {
+			bit = grid_cycle * 256  * 4 +
+			     (253 - grid_cycle) * 4 +
+			     frame_buf_offs + display;
+			/* wrap arround if offset (see manual S3C2400) */
+			if (bit>=FRAME_BUF_SIZE*8)
+				bit = bit - (FRAME_BUF_SIZE * 8);
+			adr = gd->fb_base + (bit/32) * 4 + (3 - (bit%32) / 8);
+			bit_nr = bit % 8;
+			bit_nr = (bit_nr > 3) ? bit_nr-4 : bit_nr+4;
+			temp=(*(volatile unsigned char*)(adr));
+			temp |=  (1<<bit_nr);
+			(*(volatile unsigned char*)(adr))=temp;
+
+			if(grid_cycle<37)
+				bit = grid_cycle*256*4+(252-grid_cycle)*4+frame_buf_offs+display;
+
+			/* wrap arround if offset (see manual S3C2400) */
+			if (bit>=FRAME_BUF_SIZE*8)
+				bit = bit-(FRAME_BUF_SIZE*8);
+			adr = gd->fb_base+(bit/32)*4+(3-(bit%32)/8);
+			bit_nr = bit%8;
+			bit_nr = (bit_nr>3)?bit_nr-4:bit_nr+4;
+			temp=(*(volatile unsigned char*)(adr));
+			temp |=  (1<<bit_nr);
+			(*(volatile unsigned char*)(adr))=temp;
+		}
+	    }
+	    break;
+	default:
+	    printf ("Warning: unknown display type\n");
+	    break;
 	}
 }
 
@@ -113,175 +172,135 @@ void init_grid_ctrl(void)
  */
 void create_vfd_table(void)
 {
-	unsigned int vfd_table[112][18][2][4][2];
-	ulong adr;
-	unsigned int x, y, color, display, entry, pixel, bit_nr;
+	DECLARE_GLOBAL_DATA_PTR;
+	unsigned long vfd_table[112][18][2][4][2];
+	unsigned int x, y, color, display, entry, pixel;
+	unsigned int x_abcdef = 0;
 
-	/*
-	 * Create translation table for Noritake-T119C-VFD-specific
-	 * organized frame-buffer.
-	 * Created is the number of the bit in the framebuffer (the
-	 * first transferred pixel of each frame is bit 0).
-	 */
-	for(y=0;y<=17;y++)   /* Zeile */
-	{
-		for(x=0;x<=111;x++)  /* Spalten */
-		{
-			/*Display 0 blaue Pixel Eintrag 1 */
-			vfd_table[x][y][0][0][0]=((x%4)*4+y*16+(x/4)*2048);
-			/*Display 0 rote Pixel Eintrag 1 */
-			vfd_table[x][y][1][0][0]=((x%4)*4+y*16+(x/4)*2048+512);
-			if(x<=1)
-			{
-				/*Display 0 blaue Pixel Eintrag 2 */
-				vfd_table[x][y][0][0][1]=(((x+112)%4)*4+y*16+((x+110)/4)*2048+1024);
-				/*Display 0 rote Pixel Eintrag 2 */
-				vfd_table[x][y][1][0][1]=(((x+112)%4)*4+y*16+((x+110)/4)*2048+512+1024);
-			}
-			else
-			{
-				/*Display 0 blaue Pixel Eintrag 2 */
-				vfd_table[x][y][0][0][1]=((x%4)*4+y*16+((x-2)/4)*2048+1024);
-				/*Display 0 rote Pixel Eintrag 2 */
-				vfd_table[x][y][1][0][1]=((x%4)*4+y*16+((x-2)/4)*2048+512+1024);
-			}
-			/*Display 1 blaue Pixel Eintrag 1 */
-			vfd_table[x][y][0][1][0]=((x%4)*4+y*16+(x/4)*2048+1);
-			/*Display 1 rote Pixel Eintrag 1 */
-			vfd_table[x][y][1][1][0]=((x%4)*4+y*16+(x/4)*2048+512+1);
-			if(x<=1)
-			{
-				/*Display 1 blaue Pixel Eintrag 2 */
-				vfd_table[x][y][0][1][1]=(((x+112)%4)*4+y*16+((x+110)/4)*2048+1+1024);
-				/*Display 1 rote Pixel Eintrag 2 */
-				vfd_table[x][y][1][1][1]=(((x+112)%4)*4+y*16+((x+110)/4)*2048+512+1+1024);
-			}
-			else
-			{
-				/*Display 1 blaue Pixel Eintrag 2 */
-				vfd_table[x][y][0][1][1]=((x%4)*4+y*16+((x-2)/4)*2048+1+1024);
-				/*Display 1 rote Pixel Eintrag 2 */
-				vfd_table[x][y][1][1][1]=((x%4)*4+y*16+((x-2)/4)*2048+512+1+1024);
-			}
-			/*Display 2 blaue Pixel Eintrag 1 */
-			vfd_table[x][y][0][2][0]=((x%4)*4+y*16+(x/4)*2048+2);
-			/*Display 2 rote Pixel Eintrag 1 */
-			vfd_table[x][y][1][2][0]=((x%4)*4+y*16+(x/4)*2048+512+2);
-			if(x<=1)
-			{
-				/*Display 2 blaue Pixel Eintrag 2 */
-				vfd_table[x][y][0][2][1]=(((x+112)%4)*4+y*16+((x+110)/4)*2048+2+1024);
-				/*Display 2 rote Pixel Eintrag 2 */
-				vfd_table[x][y][1][2][1]=(((x+112)%4)*4+y*16+((x+110)/4)*2048+512+2+1024);
-			}
-			else
-			{
-				/*Display 2 blaue Pixel Eintrag 2 */
-				vfd_table[x][y][0][2][1]=((x%4)*4+y*16+((x-2)/4)*2048+2+1024);
-				/*Display 2 rote Pixel Eintrag 2 */
-				vfd_table[x][y][1][2][1]=((x%4)*4+y*16+((x-2)/4)*2048+512+2+1024);
-			}
-			/*Display 3 blaue Pixel Eintrag 1 */
-			vfd_table[x][y][0][3][0]=((x%4)*4+y*16+(x/4)*2048+3);
-			/*Display 3 rote Pixel Eintrag 1 */
-			vfd_table[x][y][1][3][0]=((x%4)*4+y*16+(x/4)*2048+512+3);
-			if(x<=1)
-			{
-				/*Display 3 blaue Pixel Eintrag 2 */
-				vfd_table[x][y][0][3][1]=(((x+112)%4)*4+y*16+((x+110)/4)*2048+3+1024);
-				/*Display 3 rote Pixel Eintrag 2 */
-				vfd_table[x][y][1][3][1]=(((x+112)%4)*4+y*16+((x+110)/4)*2048+512+3+1024);
-			}
-			else
-			{
-				/*Display 3 blaue Pixel Eintrag 2 */
-				vfd_table[x][y][0][3][1]=((x%4)*4+y*16+((x-2)/4)*2048+3+1024);
-				/*Display 3 rote Pixel Eintrag 2 */
-				vfd_table[x][y][1][3][1]=((x%4)*4+y*16+((x-2)/4)*2048+512+3+1024);
-			}
+	switch (gd->vfd_type) {
+	case VFD_TYPE_T119C:
+	    for(y=0; y<=17; y++) {	/* Line */
+		for(x=0; x<=111; x++) {	/* Column */
+		    for(display=0; display <=3; display++) {
+
+			    /* Display 0 blue pixels */
+			    vfd_table[x][y][0][display][0] =
+				(x==0) ? y*16+display
+				       : (x%4)*4+y*16+((x-1)/2)*1024+display;
+			    /* Display 0 red pixels */
+			    vfd_table[x][y][1][display][0] =
+				(x==0) ? y*16+512+display
+			    	       : (x%4)*4+y*16+((x-1)/2)*1024+512+display;
+		    }
 		}
+	    }
+	    break;
+	case VFD_TYPE_MN11236:
+	    for(y=0; y<=17; y++) {	/* Line */
+		for(x=0; x<=111; x++) {	/* Column */
+		    for(display=0; display <=3; display++) {
+
+			    vfd_table[x][y][0][display][0]=0;
+			    vfd_table[x][y][0][display][1]=0;
+			    vfd_table[x][y][1][display][0]=0;
+			    vfd_table[x][y][1][display][1]=0;
+
+			    switch (x%6) {
+			    case 0: x_abcdef=0; break; /* a -> a */
+			    case 1: x_abcdef=2; break; /* b -> c */
+			    case 2: x_abcdef=4; break; /* c -> e */
+			    case 3: x_abcdef=5; break; /* d -> f */
+			    case 4: x_abcdef=3; break; /* e -> d */
+			    case 5: x_abcdef=1; break; /* f -> b */
+			    }
+
+			    /* blue pixels */
+			    vfd_table[x][y][0][display][0] =
+				(x>1) ? x_abcdef*4+((x-1)/3)*1024+y*48+display
+				      : x_abcdef*4+             0+y*48+display;
+			    /* blue pixels */
+			    if (x>1 && (x-1)%3)
+				    vfd_table[x][y][0][display][1] = x_abcdef*4+((x-1)/3+1)*1024+y*48+display;
+
+			    /* red pixels */
+			    vfd_table[x][y][1][display][0] =
+				(x>1) ? x_abcdef*4+24+((x-1)/3)*1024+y*48+display
+				      : x_abcdef*4+24+             0+y*48+display;
+			    /* red pixels */
+			    if (x>1 && (x-1)%3)
+				    vfd_table[x][y][1][display][1] = x_abcdef*4+24+((x-1)/3+1)*1024+y*48+display;
+		    }
+		}
+	    }
+	    break;
+	default:
+	    /* do nothing */
+	    return;
 	}
 
 	/*
-	 * Create translation table for Noritake-T119C-VFD-specific
-	 * organized frame-buffer
 	 * Create table with entries for physical byte adresses and
 	 * bit-number within the byte
 	 * from table with bit-numbers within the total framebuffer
 	 */
-	for(y=0;y<=17;y++)
-	{
-		for(x=0;x<=111;x++)
-		{
-			for(color=0;color<=1;color++)
-			{
-				for(display=0;display<=3;display++)
-				{
-					for(entry=0;entry<=1;entry++)
-					{
-						pixel  = vfd_table[x][y][color][display][entry] + frame_buf_offs;
-						 /*
-						  * wrap arround if offset
-						  * (see manual S3C2400)
-						  */
-						if (pixel>=frame_buf_size*8)
-							pixel = pixel-(frame_buf_size*8);
-						adr    = vfdbase+(pixel/32)*4+(3-(pixel%32)/8);
-						bit_nr = pixel%8;
-						bit_nr = (bit_nr>3)?bit_nr-4:bit_nr+4;
-						adr_vfd_table[x][y][color][display][entry] = adr;
-						bit_vfd_table[x][y][color][display][entry] = bit_nr;
-					}
-				}
+	for(y=0;y<18;y++) {
+	    for(x=0;x<112;x++) {
+		for(color=0;color<2;color++) {
+		    for(display=0;display<4;display++) {
+			for(entry=0;entry<2;entry++) {
+			    unsigned long adr  = gd->fb_base;
+			    unsigned int bit_nr = 0;
+
+			    if (vfd_table[x][y][color][display][entry]) {
+
+				pixel  = vfd_table[x][y][color][display][entry] + frame_buf_offs;
+				 /*
+				  * wrap arround if offset
+				  * (see manual S3C2400)
+				  */
+				if (pixel>=FRAME_BUF_SIZE*8)
+					pixel = pixel-(FRAME_BUF_SIZE*8);
+				adr    = gd->fb_base+(pixel/32)*4+(3-(pixel%32)/8);
+				bit_nr = pixel%8;
+				bit_nr = (bit_nr>3)?bit_nr-4:bit_nr+4;
+			    }
+			    adr_vfd_table[x][y][color][display][entry] = adr;
+			    bit_vfd_table[x][y][color][display][entry] = bit_nr;
 			}
+		    }
 		}
+	    }
 	}
 }
 
 /*
  * Set/clear pixel of the VFDs
  */
-void set_vfd_pixel(unsigned char x, unsigned char y, unsigned char color, unsigned char display, unsigned char value)
+void set_vfd_pixel(unsigned char x, unsigned char y,
+		   unsigned char color, unsigned char display,
+		   unsigned char value)
 {
+	DECLARE_GLOBAL_DATA_PTR;
 	ulong adr;
 	unsigned char bit_nr, temp;
 
-	if (value!=0)
-	{
-		/* Pixel-Eintrag Nr. 1 */
-		adr = adr_vfd_table[x][y][color][display][0];
-		/* Pixel-Eintrag Nr. 1 */
-		bit_nr = bit_vfd_table[x][y][color][display][0];
-		temp=(*(volatile unsigned char*)(adr));
-		temp|=1<<bit_nr;
-		(*(volatile unsigned char*)(adr))=temp;
-
-		/* Pixel-Eintrag Nr. 2 */
-		adr = adr_vfd_table[x][y][color][display][1];
-		/* Pixel-Eintrag Nr. 2 */
-		bit_nr = bit_vfd_table[x][y][color][display][1];
-		temp=(*(volatile unsigned char*)(adr));
-		temp|=1<<bit_nr;
-		(*(volatile unsigned char*)(adr))=temp;
+	if (! gd->vfd_type) {
+		/* Unknown type. */
+		return;
 	}
+
+	/* Pixel-Eintrag Nr. 1 */
+	adr = adr_vfd_table[x][y][color][display][0];
+	/* Pixel-Eintrag Nr. 1 */
+	bit_nr = bit_vfd_table[x][y][color][display][0];
+	temp=(*(volatile unsigned char*)(adr));
+
+	if (value)
+		temp |=  (1<<bit_nr);
 	else
-	{
-		/* Pixel-Eintrag Nr. 1 */
-		adr = adr_vfd_table[x][y][color][display][0];
-		/* Pixel-Eintrag Nr. 1 */
-		bit_nr = bit_vfd_table[x][y][color][display][0];
-		temp=(*(volatile unsigned char*)(adr));
-		temp&=~(1<<bit_nr);
-		(*(volatile unsigned char*)(adr))=temp;
+		temp &= ~(1<<bit_nr);
 
-		/* Pixel-Eintrag Nr. 2 */
-		adr = adr_vfd_table[x][y][color][display][1];
-		/* Pixel-Eintrag Nr. 2 */
-		bit_nr = bit_vfd_table[x][y][color][display][1];
-		temp=(*(volatile unsigned char*)(adr));
-		temp&=~(1<<bit_nr);
-		(*(volatile unsigned char*)(adr))=temp;
-	}
+	(*(volatile unsigned char*)(adr))=temp;
 }
 
 /*
@@ -334,12 +353,81 @@ void transfer_pic(int display, unsigned char *adr, int height, int width)
 }
 
 /*
+ * This function initializes VFD clock that is needed for the CPLD that
+ * manages the keyboard.
+ */
+int vfd_init_clocks (void)
+{
+
+	/* try to determine display type from the value
+	 * defined by pull-ups
+	 */
+	rPCUP = (rPCUP & 0xFFF0);	/* activate  GPC0...GPC3 pullups */
+	rPCCON = (rPCCON & 0xFFFFFF00);	/* configure GPC0...GPC3 as inputs */
+	udelay (10);				/* allow signals to settle */
+	vfd_board_id = (~rPCDAT) & 0x000F;	/* read GPC0...GPC3 port pins */
+
+	VFD_DISABLE;				/* activate blank for the vfd */
+
+#define	NEW_CPLD_CLK
+
+#ifdef NEW_CPLD_CLK
+	if (vfd_board_id) {
+		/* If new board revision, then use PWM 3 as cpld-clock */
+		/* Enable 500 Hz timer for fill level sensor to operate properly */
+		/* Configure TOUT3 as functional pin, disable pull-up */
+		rPDCON &= ~0x30000;
+		rPDCON |= 0x20000;
+		rPDUP |= (1 << 8);
+
+		/* Configure the prescaler */
+		rTCFG0 &= ~0xff00;
+		rTCFG0 |= 0x0f00;
+
+		/* Select MUX input (divider) for timer3 (1/16) */
+		rTCFG1 &= ~0xf000;
+		rTCFG1 |= 0x3000;
+
+		/* Enable autoreload and set the counter and compare
+		 * registers to values for the 500 Hz clock
+		 * (for a given  prescaler (15) and divider (16)):
+		 * counter = (66000000 / 500) >> 9;
+		 */
+		rTCNTB3 = 0x101;
+		rTCMPB3 = 0x101 / 2;
+
+		/* Start timer */
+		rTCON = (rTCON | UPDATE3 | RELOAD3) & ~INVERT3;
+		rTCON = (rTCON | START3) & ~UPDATE3;
+	}
+#endif
+	/* If old board revision, then use vm-signal as cpld-clock */
+	rLCDCON2 = 0x00FFC000;
+	rLCDCON3 = 0x0007FF00;
+	rLCDCON4 = 0x00000000;
+	rLCDCON5 = 0x00000400;
+	rLCDCON1 = 0x00000B75;
+	/* VM (GPD1) is used as clock for the CPLD */
+	rPDCON = (rPDCON & 0xFFFFFFF3) | 0x00000008;
+
+	return 0;
+}
+
+/*
  * initialize LCD-Controller of the S3C2400 for using VFDs
+ *
+ * VFD detection depends on the board revision:
+ * starting from Rev. 200 a type code can be read from the data pins,
+ * driven by some pull-up resistors; all earlier systems must be
+ * manually configured. The type is set in the "vfd_type" environment
+ * variable.
  */
 int drv_vfd_init(void)
 {
+	char *tmp;
 	ulong palette;
 	static int vfd_init_done = 0;
+	int vfd_inv_data = 0;
 
 	DECLARE_GLOBAL_DATA_PTR;
 
@@ -347,9 +435,42 @@ int drv_vfd_init(void)
 		return (0);
 	vfd_init_done = 1;
 
-	vfdbase = gd->fb_base;
+	debug("Detecting Revison of WA4-VFD: ID=0x%X\n", vfd_board_id);
+
+	switch (vfd_board_id) {
+	case 0:			/* board revision < Rev.200 */
+		if ((tmp = getenv ("vfd_type")) == NULL) {
+			break;
+		}
+		if (strcmp(tmp, "T119C") == 0) {
+			gd->vfd_type = VFD_TYPE_T119C;
+		} else if (strcmp(tmp, "MN11236") == 0) {
+			gd->vfd_type = VFD_TYPE_MN11236;
+		} else {
+			/* cannot use printf for a warning here */
+			gd->vfd_type = 0;	/* unknown */
+		}
+
+		break;
+	default:		/* default to MN11236, data inverted */
+		gd->vfd_type = VFD_TYPE_MN11236;
+		vfd_inv_data = 1;
+		setenv ("vfd_type", "MN11236");
+	}
+	debug ("VFD type: %s%s\n",
+		(gd->vfd_type == VFD_TYPE_T119C)   ? "T119C" :
+		(gd->vfd_type == VFD_TYPE_MN11236) ? "MN11236" :
+		"unknown",
+		vfd_inv_data ? ", inverted data" : "");
+
+	gd->fb_base = gd->fb_base;
 	create_vfd_table();
 	init_grid_ctrl();
+
+	for (palette=0; palette < 16; palette++)
+		(*(volatile unsigned int*)(PALETTE+(palette*4)))=palette;
+	for (palette=16; palette < 256; palette++)
+		(*(volatile unsigned int*)(PALETTE+(palette*4)))=0x00;
 
 	/*
 	 * Hinweis: Der Framebuffer ist um genau ein Nibble verschoben
@@ -358,37 +479,50 @@ int drv_vfd_init(void)
 	 * (wrap around)
 	 * see manual S3C2400
 	 */
+	/* Stopp LCD-Controller */
+	rLCDCON1 = 0x00000000;
 	/* frame buffer startadr */
-	rLCDSADDR1 = vfdbase >> 1;
+	rLCDSADDR1 = gd->fb_base >> 1;
  	/* frame buffer endadr */
-	rLCDSADDR2 = (vfdbase + frame_buf_size) >> 1;
+	rLCDSADDR2 = (gd->fb_base + FRAME_BUF_SIZE) >> 1;
 	rLCDSADDR3 = ((256/4));
-
-	/* Port-Pins als LCD-Ausgang */
-	rPCCON =   (rPCCON & 0xFFFFFF00)| 0x000000AA;
-	/* Port-Pins als LCD-Ausgang */
-	rPDCON =   (rPDCON & 0xFFFFFF03)| 0x000000A8;
-#ifdef WITH_VFRAME
-	/* mit VFRAME zum Messen */
-	rPDCON =   (rPDCON & 0xFFFFFF00)| 0x000000AA;
-#endif
-
 	rLCDCON2 = 0x000DC000;
 	rLCDCON3 = 0x0051000A;
 	rLCDCON4 = 0x00000001;
-	rLCDCON5 = 0x00000440;
-	rLCDCON1 = 0x00000B75;
+	if (gd->vfd_type && vfd_inv_data)
+		rLCDCON5 = 0x000004C0;
+	else
+		rLCDCON5 = 0x00000440;
+
+	/* Port pins as LCD output */
+	rPCCON =   (rPCCON & 0xFFFFFF00)| 0x000000AA;
+	rPDCON =   (rPDCON & 0xFFFFFF03)| 0x000000A8;
+
+	/* Synchronize VFD enable with LCD controller to avoid flicker	*/
+	rLCDCON1 = 0x00000B75;			/* Start LCD-Controller	*/
+	while((rLCDCON5 & 0x180000)!=0x100000);	/* Wait for end of VSYNC */
+	while((rLCDCON5 & 0x060000)!=0x040000);	/* Wait for next HSYNC	*/
+	while((rLCDCON5 & 0x060000)==0x040000);
+	while((rLCDCON5 & 0x060000)!=0x000000);
+	if(gd->vfd_type)
+		VFD_ENABLE;
 
 	debug ("LCDSADDR1: %lX\n", rLCDSADDR1);
 	debug ("LCDSADDR2: %lX\n", rLCDSADDR2);
 	debug ("LCDSADDR3: %lX\n", rLCDSADDR3);
 
-	for(palette=0;palette<=15;palette++)
-		(*(volatile unsigned int*)(PALETTE+(palette*4)))=palette;
-	for(palette=16;palette<=255;palette++)
-		(*(volatile unsigned int*)(PALETTE+(palette*4)))=0x00;
-
 	return 0;
+}
+
+/*
+ * Disable VFD: should be run before resetting the system:
+ * disable VM, enable pull-up
+ */
+void disable_vfd (void)
+{
+	VFD_DISABLE;
+	rPDCON &= ~0xC;
+	rPDUP  &= ~0x2;
 }
 
 /************************************************************************/
@@ -405,11 +539,8 @@ ulong vfd_setmem (ulong addr)
 {
 	ulong size;
 
-	/* MAGIC */
-	frame_buf_size = (256*4*56)/8;
-
 	/* Round up to nearest full page */
-	size = (frame_buf_size + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
+	size = (FRAME_BUF_SIZE + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
 
 	debug ("Reserving %ldk for VFD Framebuffer at: %08lx\n", size>>10, addr);
 

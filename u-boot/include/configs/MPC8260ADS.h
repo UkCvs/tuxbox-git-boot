@@ -99,8 +99,17 @@
 #define CFG_I2C_SPEED		400000	/* I2C speed and slave address	*/
 #define CFG_I2C_SLAVE		0x7F
 
+#if defined(CONFIG_SPD_EEPROM) && !defined(CONFIG_SPD_ADDR)
+#define CONFIG_SPD_ADDR         0x50
+#endif
 
+#ifndef CONFIG_SDRAM_PBI
+#define CONFIG_SDRAM_PBI        1 /* By default, use page-based interleaving */
+#endif
+
+#ifndef CONFIG_8260_CLKIN
 #define CONFIG_8260_CLKIN	66666666	/* in Hz */
+#endif
 #define CONFIG_BAUDRATE		115200
 
 #define CONFIG_COMMANDS		(CFG_CMD_ALL & ~( \

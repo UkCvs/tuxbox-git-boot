@@ -279,7 +279,7 @@ int serial_tstc ()
 #define UART0_BASE      0xef600300
 #define UART1_BASE      0xef600400
 #define CR0_MASK        0x00001fff
-#define CR0_EXTCLK_ENA  0x00000c00
+#define CR0_EXTCLK_ENA  0x000000c0
 #define CR0_UDIV_POS    1
 #endif
 
@@ -451,6 +451,8 @@ int serial_init (void)
 #else
 	tmp = CFG_BASE_BAUD * 16;
 	udiv = (clk + tmp / 2) / tmp;
+	if (udiv > 32)                          /* max. 5 bits for udiv */
+		udiv = 32;
 #endif
 #endif
 

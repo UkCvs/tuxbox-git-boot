@@ -192,6 +192,8 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	if (hdr->ih_arch != IH_CPU_ARM)
 #elif defined(__I386__)
 	if (hdr->ih_arch != IH_CPU_I386)
+#elif defined(__mips__)
+	if (hdr->ih_arch != IH_CPU_MIPS)	
 #else
 # error Unknown CPU type
 #endif
@@ -621,7 +623,7 @@ do_bootm_linux (cmd_tbl_t *cmdtp, int flag,
 	 */
 	(*kernel) (kbd, initrd_start, initrd_end, cmd_start, cmd_end);
 }
-#endif /* CONFIG_ARM */
+#endif /* CONFIG_PPC */
 
 static void
 do_bootm_netbsd (cmd_tbl_t *cmdtp, int flag,

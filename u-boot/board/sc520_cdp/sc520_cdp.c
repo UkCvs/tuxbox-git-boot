@@ -133,7 +133,7 @@ static struct pci_controller sc520_cdp_hose = {
 	fixup_irq: pci_sc520_cdp_fixup_irq,
 };
 
-void pci_init(void)
+void pci_init_board(void)
 {
 	pci_sc520_init(&sc520_cdp_hose);
 }

@@ -32,9 +32,29 @@
 # define SHOW_BOOT_PROGRESS(arg)
 #endif
 
-/*
- * Miscelaneous platform dependent initialisations
+/** 
+ * misc_init_r: - misc initialisation routines
  */
+
+int misc_init_r(void)
+{
+#if 0	
+	uchar *str;
+	
+	/* determine if the software update key is pressed during startup */
+	/* not ported yet... */
+	if (GPLR0 & 0x00000800) {
+		printf("using bootcmd_normal (sw-update button not pressed)\n");
+		str = getenv("bootcmd_normal");
+	} else {
+		printf("using bootcmd_update (sw-update button pressed)\n");
+		str = getenv("bootcmd_update");
+	}
+
+	setenv("bootcmd",str);
+#endif	
+	return 0;
+}	
 
 
 /** 

@@ -43,6 +43,7 @@ typedef	struct	global_data {
 	unsigned long	env_valid;	/* Checksum of Environment valid? */
 #ifdef CONFIG_VFD
 	unsigned long	fb_base;	/* base address of frame buffer */
+	unsigned char	vfd_type;	/* display type */
 #endif
 #if 0
 	unsigned long	cpu_clk;	/* CPU clock in Hz!		*/

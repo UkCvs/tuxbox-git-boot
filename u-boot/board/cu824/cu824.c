@@ -98,11 +98,11 @@ Done:
  */
 #ifndef CONFIG_PCI_PNP
 static struct pci_config_table pci_sandpoint_config_table[] = {
-	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
-	  PCI_BUS(CFG_ETH_DEV_FN), PCI_DEV(CFG_ETH_DEV_FN), PCI_FUNC(CFG_ETH_DEV_FN),
-	  pci_cfgfunc_config_device, { CFG_ETH_IOBASE,
-				       0,
-				       PCI_COMMAND_IO | PCI_COMMAND_MASTER }},
+	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, 0x0f, PCI_ANY_ID,
+	  pci_cfgfunc_config_device, { PCI_ENET0_IOADDR,
+				       PCI_ENET0_MEMADDR,
+				       PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER }},
+
 	{ }
 };
 #endif
@@ -113,7 +113,7 @@ struct pci_controller hose = {
 #endif
 };
 
-void pci_init(void)
+void pci_init_board(void)
 {
 	pci_mpc824x_init(&hose);
 }

@@ -30,6 +30,13 @@
 
 /* ------------------------------------------------------------------------- */
 
+#ifdef CFG_BRIGHTNESS
+static void spi_init(void);
+static void wait_transmit_done(void);
+static void tsc2000_write(unsigned int page, unsigned int reg, 
+						  unsigned int data);
+static void tsc2000_set_brightness(void);
+#endif
 #ifdef CONFIG_MODEM_SUPPORT
 static int key_pressed(void);
 extern void disable_putc(void);
@@ -60,11 +67,8 @@ static void udelay_no_timer (int usec)
 
 int board_init ()
 {
-#if defined(CONFIG_MODEM_SUPPORT) && defined(CONFIG_VFD)
-	ulong size;
-	unsigned long addr;
-	extern void mem_malloc_init (ulong);
-	extern int drv_vfd_init(void);
+#if defined(CONFIG_VFD)
+	extern int vfd_init_clocks(void);
 #endif
 	DECLARE_GLOBAL_DATA_PTR;
 
@@ -107,26 +111,15 @@ int board_init ()
 	/* adress of boot parameters */
 	gd->bd->bi_boot_params = 0x0c000100;
 
-#ifdef CONFIG_MODEM_SUPPORT
+	/* Make sure both buzzers are turned off */
+	rPDCON |= 0x5400;
+	rPDDAT &= ~0xE0;
+
 #ifdef CONFIG_VFD
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096
-#endif
-	/*
-	 * reserve memory for VFD display (always full pages)
-	 */
-	/* armboot_real_end is defined in the board-specific linker script */
-	addr = (_armboot_real_end + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
-	size = vfd_setmem (addr);
-	gd->fb_base = addr;
-	/* round to the next page boundary */
-	addr += size;
-	addr = (addr + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
-	mem_malloc_init (addr);
-	/* must do this after the framebuffer is allocated */
-	drv_vfd_init();
+	vfd_init_clocks();
 #endif /* CONFIG_VFD */
 
+#ifdef CONFIG_MODEM_SUPPORT
 	udelay_no_timer (KBD_MDELAY);
 
 	if (key_pressed()) {
@@ -182,6 +175,9 @@ int misc_init_r (void)
 		free (str);
 	}
 
+#ifdef CFG_BRIGHTNESS
+	tsc2000_set_brightness();
+#endif
 	return (0);
 }
 
@@ -306,3 +302,74 @@ static int key_pressed(void)
 	return (compare_magic(KBD_DATA, CONFIG_MODEM_KEY_MAGIC) == 0);
 }
 #endif	/* CONFIG_MODEM_SUPPORT */
+
+#ifdef CFG_BRIGHTNESS
+
+#define SET_CS_TOUCH        (rPDDAT &= 0x5FF)
+#define CLR_CS_TOUCH        (rPDDAT |= 0x200)
+
+static void spi_init(void)
+{
+	int i;
+
+	/* Configure I/O ports. */
+ 	rPDCON = (rPDCON & 0xF3FFFF) | 0x040000;
+	rPGCON = (rPGCON & 0x0F3FFF) | 0x008000;
+	rPGCON = (rPGCON & 0x0CFFFF) | 0x020000;
+	rPGCON = (rPGCON & 0x03FFFF) | 0x080000;
+
+	CLR_CS_TOUCH;
+
+	rSPPRE = 0x1F; /* Baudrate ca. 514kHz */
+	rSPPIN = 0x01;  /* SPI-MOSI holds Level after last bit */
+	rSPCON = 0x1A;  /* Polling, Prescaler, Master, CPOL=0, CPHA=1 */
+
+	/* Dummy byte ensures clock to be low. */
+	for (i = 0; i < 10; i++) {
+		rSPTDAT = 0xFF;
+	}
+}
+
+static void wait_transmit_done(void)
+{
+	while (!(rSPSTA & 0x01)); /* wait until transfer is done */
+}
+
+static void tsc2000_write(unsigned int page, unsigned int reg, 
+						  unsigned int data)
+{
+	unsigned int command;
+
+	SET_CS_TOUCH;
+	command = 0x0000;
+	command |= (page << 11);
+	command |= (reg << 5);
+
+	rSPTDAT = (command & 0xFF00) >> 8;
+	wait_transmit_done();
+	rSPTDAT = (command & 0x00FF);
+	wait_transmit_done();
+	rSPTDAT = (data & 0xFF00) >> 8;
+	wait_transmit_done();
+	rSPTDAT = (data & 0x00FF);
+	wait_transmit_done();
+
+	CLR_CS_TOUCH;
+}
+
+static void tsc2000_set_brightness(void)
+{
+	uchar tmp[10];
+	int i, br;
+
+	spi_init();
+	tsc2000_write(1, 2, 0x0); /* Power up DAC */
+
+	i = getenv_r("brightness", tmp, sizeof(tmp));
+	br = (i > 0)
+		? (int) simple_strtoul (tmp, NULL, 10)
+		: CFG_BRIGHTNESS;
+
+	tsc2000_write(0, 0xb, br & 0xff);
+}
+#endif

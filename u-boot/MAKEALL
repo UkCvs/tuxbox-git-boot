@@ -16,18 +16,18 @@ LIST=""
 
 LIST_8xx="	\
 	ADS860		AMX860		c2mon		CCM		\
-	cogent_mpc8xx	ESTEEM192E	ETX094		FADS823		\
-	FADS850SAR	FADS860T	FLAGADM		FPS850L		\
-	GEN860T		GENIETV		GTH		hermes		\
-	IAD210		ICU862_100MHz	IP860		IVML24		\
-	IVML24_128	IVML24_256	IVMS8		IVMS8_128	\
-	IVMS8_256	KUP4K           LANTEC	        lwmon   	\
-	MBX		MBX860T		MHPC		MVS1		\
-	NETVIA		NX823		pcu_e		R360MPI		\
-	RPXClassic	RPXlite		RRvision	SM850		\
-	SPD823TS	SXNI855T	TQM823L		TQM823L_LCD	\
-	TQM850L		TQM855L		TQM860L		TQM860L_FEC	\
-	TTTech
+	cogent_mpc8xx	ESTEEM192E	ETX094		ELPT860		\
+	FADS823		FADS850SAR	FADS860T	FLAGADM		\
+	FPS850L		GEN860T		GENIETV		GTH		\
+	hermes		IAD210		ICU862_100MHz	IP860		\
+	IVML24		IVML24_128	IVML24_256	IVMS8		\
+	IVMS8_128	IVMS8_256	KUP4K           LANTEC	        \
+	lwmon   	MBX		MBX860T		MHPC		\
+	MVS1		NETVIA		NX823		pcu_e		\
+	R360MPI		RPXClassic	RPXlite		RRvision	\
+	SM850		SPD823TS	SXNI855T	TOP860		\
+	TQM823L		TQM823L_LCD	TQM850L		TQM855L		\
+	TQM860L		TQM860L_FEC	TTTech		v37		\
 "
 
 #########################################################################
@@ -48,9 +48,9 @@ LIST_4xx="	\
 #########################################################################
 
 LIST_824x="	\
-	BMW		CU824		MOUSSE		MUSENKI		\
-	OXC		PN62		Sandpoint8240	Sandpoint8245	\
-	utx8245								\
+	BMW		CPC45		CU824		MOUSSE		\
+	MUSENKI		OXC		PN62		Sandpoint8240	\
+	Sandpoint8245	utx8245						\
 "
 
 #########################################################################
@@ -59,9 +59,9 @@ LIST_824x="	\
 
 LIST_8260="	\
 	cogent_mpc8260	CPU86		ep8260		gw8260		\
-	hymod		IPHASE4539	MPC8260ADS	PM826		\
-	ppmc8260	RPXsuper	rsdproto	sacsng		\
-	sbc8260		SCM		TQM8260				\
+	hymod		IPHASE4539	MPC8260ADS	MPC8266ADS	\
+	PM826		ppmc8260	RPXsuper	rsdproto	\
+	sacsng		sbc8260		SCM		TQM8260		\
 "
 
 #########################################################################
@@ -95,13 +95,13 @@ LIST_ARM7="impa7 ep7312"
 ## ARM9 Systems
 #########################################################################
 
-LIST_ARM9="smdk2400 smdk2410 trab"
+LIST_ARM9="smdk2400 smdk2410 trab VCMA9"
 
 #########################################################################
 ## Xscale Systems
 #########################################################################
 
-LIST_xscale="lubbock cradle csb226"
+LIST_xscale="lubbock cradle csb226 innokom"
 
 
 LIST_arm="${LIST_SA} ${LIST_ARM7} ${LIST_ARM9} ${LIST_xscale}"
