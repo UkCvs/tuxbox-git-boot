@@ -58,6 +58,7 @@
 
 #undef	CONFIG_BOOTARGS
 
+#ifdef NFSROOT
 #define	CONFIG_BOOTCOMMAND							\
 	"dhcp; tftp \"$(bootfile)\"; "						\
 	"protect off 10040000 107fffff; "					\
@@ -65,12 +66,19 @@
 	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off "	\
 	"console=$(console); "							\
 	"bootm"
-/*
+#else /* ! NFSROOT */
+#ifdef JFFS2ROOT
+#define	CONFIG_BOOTCOMMAND							\
+	"protect off 10040000 107fffff; "					\
+	"fsload; setenv bootargs root=/dev/mtdblock2 rw console=$(console); "	\
+	"bootm"
+#else /* ! JFFS2ROOT */
 #define	CONFIG_BOOTCOMMAND							\
 	"protect off 10040000 107fffff; "					\
 	"fsload; setenv bootargs root=/dev/mtdblock2 console=$(console); "	\
 	"bootm"
-*/
+#endif
+#endif /* ! NFSROOT */
 
 #define	CONFIG_EXTRA_ENV_SETTINGS 						\
 	"console=ttyS0\0"
@@ -84,30 +92,66 @@
 
 #define	CONFIG_COMMANDS		( CONFIG_CMD_DFL | CFG_CMD_FS | CFG_CMD_DHCP )
 
+#ifdef JFFS2ROOT
+#define	CONFIG_FS		( CFG_FS_JFFS2 )
+#else
 #define	CONFIG_FS		( CFG_FS_CRAMFS | CFG_FS_JFFS2 )
+#endif
 
+#ifdef JFFS2ROOT
+#define	CFG_FS_PART0_TYPE	CFG_FS_JFFS2
+#define	CFG_FS_PART0_OFFSET	0x10040000
+#define	CFG_FS_PART0_SIZE	0x7c0000
+#else
 #define	CFG_FS_PART0_TYPE	CFG_FS_CRAMFS
 #define	CFG_FS_PART0_OFFSET	0x10040000
 #define	CFG_FS_PART0_SIZE	0x6e0000
 #define	CFG_FS_PART1_TYPE	CFG_FS_JFFS2
 #define	CFG_FS_PART1_OFFSET	0x10720000
 #define	CFG_FS_PART1_SIZE	0xe0000
+#endif
 
+#ifdef NFSROOT
 #define	CONFIG_DBOX2_FS_ENV_READ		"1:env"
-
+#else
+#ifdef JFFS2ROOT
+#define	CONFIG_DBOX2_FS_ENV_READ		"0:boot/boot.conf"
+#else
+#define	CONFIG_DBOX2_FS_ENV_READ		"1:tuxbox/boot/boot.conf"
+#endif
+#endif
 #define	CONFIG_TUXBOX_NETWORK			1
 
 #ifdef	CONFIG_LCD_BOARD
 #define	CONFIG_DBOX2_LCD_INFO			1
 #define	CONFIG_DBOX2_LCD_LOGO			1
+
+#ifdef NFSROOT
 #define	CONFIG_DBOX2_LCD_LOGO_FS		"1:logo-lcd"
+#else
+#ifdef JFFS2ROOT
+#define	CONFIG_DBOX2_LCD_LOGO_FS		"0:boot/logo-lcd"
+#else
+#define	CONFIG_DBOX2_LCD_LOGO_FS		"1:tuxbox/boot/logo-lcd"
+#endif
+#endif
+
 #define	CONFIG_DBOX2_LCD_LOGO_TFTP		"logo-lcd"
 #define	CONFIG_DBOX2_LCD_LOGO_RESERVE		2
 #undef	CONFIG_DBOX2_LCD_FONT8x16
 #endif	/* CONFIG_LCD_BOARD */
 #ifdef	CONFIG_DBOX2_FB
 #define	CONFIG_DBOX2_FB_LOGO			1
+
+#ifdef NFSROOT
 #define	CONFIG_DBOX2_FB_LOGO_FS			"1:logo-fb"
+#else
+#ifdef JFFS2ROOT
+#define	CONFIG_DBOX2_FB_LOGO_FS			"0:boot/logo-fb"
+#else
+#define	CONFIG_DBOX2_FB_LOGO_FS			"1:tuxbox/boot/logo-fb"
+#endif
+#endif
 #define	CONFIG_DBOX2_FB_LOGO_TFTP		"logo-fb"
 #endif	/* CONFIG_DBOX2_FB */
 
