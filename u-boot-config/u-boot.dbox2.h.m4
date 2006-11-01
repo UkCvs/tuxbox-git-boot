@@ -77,6 +77,7 @@ ifdef(`rootsize',,`define(`rootsize',`0x660000')')dnl
 #define	CONFIG_COMMANDS		( CONFIG_CMD_DFL | CFG_CMD_FS | CFG_CMD_DHCP )
 
 #define	CONFIG_FS		( ifelse(rootfstype,`cramfs',`CFG_FS_CRAMFS |', rootfstype,`squashfs',`CFG_FS_SQUASHFS |') CFG_FS_JFFS2 )
+#define CONFIG_SQUASHFS_LZMA    ifelse(rootfstype,`squashfs',`1',`0')
 
 #define	CFG_FS_PART0_TYPE	CFG_FS_`'translit(rootfstype, `a-z', `A-Z')
 #define	CFG_FS_PART0_OFFSET	0x10040000
