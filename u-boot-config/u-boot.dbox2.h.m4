@@ -61,7 +61,7 @@ ifdef(`rootsize',,`define(`rootsize',`0x660000')')dnl
 
 #undef	CONFIG_BOOTARGS
 #define	CONFIG_BOOTCOMMAND							  \
-	"setenv bootargs console=$(console),$(baudrate) root=/dev/mtdblock2 ifelse(rootfstype, `jffs2', `rw ')`rootfstype'=rootfstype;\
+	"setenv bootargs console=$(console),$(baudrate) dbox_duplex=$(dbox_duplex) root=/dev/mtdblock2 ifelse(rootfstype, `jffs2', `rw ')`rootfstype'=rootfstype;\
 		     fsload; protect off 10020000 107fffff; bootm"
 
 #define	CONFIG_EXTRA_ENV_SETTINGS 						\
