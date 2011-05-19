@@ -17,7 +17,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: avia.h,v 1.1 2004/05/01 23:38:34 carjay Exp $
+ * $Id: avia.h,v 1.2 2011/05/19 19:54:36 rhabarber1848 Exp $
  */
 
 #ifndef __DBOX2__FB__AVIA_H
@@ -355,8 +355,13 @@ extern unsigned char* enx_get_reg_addr(void);
 extern void enx_free_irq(int reg, int bit);
 extern int enx_allocate_irq(int reg, int bit, void (*isr)(int, int));
 
+#if __GNUC__ > 3
+#define enx_reg_w(register) (*((unsigned int*)(enx_get_reg_addr() + register)))
+#define enx_reg_h(register) (*((unsigned short*)(enx_get_reg_addr() + register)))
+#else
 #define enx_reg_w(register) ((unsigned int)(*((unsigned int*)(enx_get_reg_addr() + register))))
 #define enx_reg_h(register) ((unsigned short)(*((unsigned short*)(enx_get_reg_addr() + register))))
+#endif
 #define enx_reg_s(register) ((s##register *)(&enx_reg_w(register)))
 #define enx_reg_o(offset) (enx_get_reg_addr() + offset)
 

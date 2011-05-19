@@ -17,7 +17,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: lcd.c,v 1.5 2009/07/27 14:39:01 rhabarber1848 Exp $
+ * $Id: lcd.c,v 1.6 2011/05/19 19:54:36 rhabarber1848 Exp $
  */
 
 #include <common.h>
@@ -151,9 +151,13 @@
 
 volatile iop8xx_t * iop;
 
+#if __GNUC__ > 3
+short console_col = 0;
+short console_row = 0;
+#else
 static short console_col = 0;
 static short console_row = 0;
-
+#endif
 #if CONFIG_DBOX2_LCD_LOGO
 #define	LCD_CONSOLE_COLS (LCD_COLS / FONT_WIDTH)
 #define	LCD_CONSOLE_ROWS CONFIG_DBOX2_LCD_LOGO_RESERVE
